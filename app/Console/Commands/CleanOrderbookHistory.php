@@ -16,6 +16,8 @@ class CleanOrderbookHistory extends Command
         $this->info("Cleaned {$deleted['history']} old orderbook history records.");
         $this->info("Cleaned {$deleted['trades']} old trade records.");
         $this->info("Cleaned {$deleted['klines']} old closed kline records.");
+        $this->info("Cleaned {$deleted['orderbook_metrics']} old orderbook metrics records.");
+        $this->info("Cleaned {$deleted['trade_aggregates']} old trade aggregate records.");
 
         return Command::SUCCESS;
     }

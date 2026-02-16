@@ -9,3 +9,6 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('orderbook:clean-history')->hourly();
+Schedule::command('trades:aggregate')->everyMinute();
+Schedule::command('binance:fetch-open-interest')->everyThirtySeconds();
+Schedule::command('binance:clean-futures-history')->hourly();

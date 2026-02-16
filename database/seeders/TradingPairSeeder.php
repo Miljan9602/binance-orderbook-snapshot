@@ -10,7 +10,7 @@ class TradingPairSeeder extends Seeder
     public function run(): void
     {
         $pairs = [
-            ['symbol' => 'SEIUSDC', 'base_asset' => 'SEI', 'quote_asset' => 'USDC', 'stream_name' => 'seiusdc@depth20'],
+            ['symbol' => 'SEIUSDC', 'base_asset' => 'SEI', 'quote_asset' => 'USDC', 'stream_name' => 'seiusdc@depth20', 'futures_symbol' => 'seiusdt'],
         ];
 
         foreach ($pairs as $pair) {

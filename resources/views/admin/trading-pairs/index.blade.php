@@ -101,6 +101,19 @@
                 View Live Orderbook
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
             </a>
+            <a href="{{ route('admin.trading-pairs.history', $pair) }}" class="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-700 text-gray-300 hover:text-gray-100 hover:bg-gray-800 rounded-lg transition-colors text-sm">
+                Browse History
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </a>
+            <a href="{{ route('admin.trading-pairs.analytics', $pair) }}" class="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-700 text-gray-300 hover:text-gray-100 hover:bg-gray-800 rounded-lg transition-colors text-sm">
+                Analytics
+            </a>
+            <a href="{{ route('admin.trading-pairs.futures', $pair) }}" class="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-700 text-gray-300 hover:text-gray-100 hover:bg-gray-800 rounded-lg transition-colors text-sm">
+                Futures
+            </a>
+            <a href="{{ route('admin.trading-pairs.klines', $pair) }}" class="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-700 text-gray-300 hover:text-gray-100 hover:bg-gray-800 rounded-lg transition-colors text-sm">
+                Klines
+            </a>
             <form action="{{ route('admin.trading-pairs.toggle', $pair) }}" method="POST" class="inline">
                 @csrf
                 <button type="submit" class="px-4 py-2.5 text-sm rounded-lg border {{ $pair->is_active ? 'border-red-800 text-red-400 hover:bg-red-900/30' : 'border-green-800 text-green-400 hover:bg-green-900/30' }} transition-colors">

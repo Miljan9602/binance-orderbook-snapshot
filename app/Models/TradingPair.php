@@ -13,6 +13,7 @@ class TradingPair extends Model
         'base_asset',
         'quote_asset',
         'stream_name',
+        'futures_symbol',
         'is_active',
         'depth_level',
         'last_update_at',
@@ -46,5 +47,35 @@ class TradingPair extends Model
     public function klines(): HasMany
     {
         return $this->hasMany(Kline::class);
+    }
+
+    public function orderbookMetrics(): HasMany
+    {
+        return $this->hasMany(OrderbookMetric::class);
+    }
+
+    public function tradeAggregates(): HasMany
+    {
+        return $this->hasMany(TradeAggregate::class);
+    }
+
+    public function futuresMetric(): HasOne
+    {
+        return $this->hasOne(FuturesMetric::class);
+    }
+
+    public function futuresMetricsHistory(): HasMany
+    {
+        return $this->hasMany(FuturesMetricHistory::class);
+    }
+
+    public function liquidations(): HasMany
+    {
+        return $this->hasMany(Liquidation::class);
+    }
+
+    public function openInterest(): HasMany
+    {
+        return $this->hasMany(OpenInterest::class);
     }
 }

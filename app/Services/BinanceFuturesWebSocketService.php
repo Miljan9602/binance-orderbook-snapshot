@@ -10,54 +10,54 @@ use Ratchet\RFC6455\Messaging\MessageInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 
-class BinanceWebSocketService
+class BinanceFuturesWebSocketService
 {
     private LoopInterface $loop;
-    private OrderbookService $orderbookService;
+    private BinanceFuturesService $futuresService;
     private array $streamToTradingPairId = [];
     private int $reconnectDelay;
     private bool $shouldRun = true;
 
-    public function __construct(OrderbookService $orderbookService)
+    public function __construct(BinanceFuturesService $futuresService)
     {
-        $this->orderbookService = $orderbookService;
+        $this->futuresService = $futuresService;
         $this->reconnectDelay = config('binance.reconnect_base_delay');
         $this->loop = Loop::get();
     }
 
-    private const ADDITIONAL_STREAMS = ['aggTrade', 'kline_1m', 'kline_5m', 'kline_15m', 'kline_1h', 'ticker'];
-
     public function run(): void
     {
-        $activePairs = TradingPair::where('is_active', true)->get();
+        $activePairs = TradingPair::where('is_active', true)
+            ->whereNotNull('futures_symbol')
+            ->get();
 
         if ($activePairs->isEmpty()) {
-            Log::warning('No active trading pairs found. Exiting.');
+            Log::warning('No active trading pairs with futures_symbol found. Exiting.');
             return;
         }
 
         $allStreams = [];
 
         foreach ($activePairs as $pair) {
-            // Map the depth stream (existing)
-            $this->streamToTradingPairId[$pair->stream_name] = $pair->id;
-            $allStreams[] = $pair->stream_name;
+            $symbol = $pair->futures_symbol;
 
-            // Extract symbol prefix from stream_name (e.g., "seiusdc" from "seiusdc@depth20")
-            $symbolPrefix = explode('@', $pair->stream_name)[0];
+            $markPriceStream = "{$symbol}@markPrice@1s";
+            $forceOrderStream = "{$symbol}@forceOrder";
 
-            // Add additional streams for this pair
-            foreach (self::ADDITIONAL_STREAMS as $streamType) {
-                $streamName = "{$symbolPrefix}@{$streamType}";
-                $this->streamToTradingPairId[$streamName] = $pair->id;
-                $allStreams[] = $streamName;
-            }
+            $this->streamToTradingPairId[$markPriceStream] = $pair->id;
+            $this->streamToTradingPairId[$forceOrderStream] = $pair->id;
+
+            $allStreams[] = $markPriceStream;
+            $allStreams[] = $forceOrderStream;
         }
 
         $streams = implode('/', $allStreams);
-        $url = config('binance.ws_base_url') . "/stream?streams={$streams}";
+        $url = config('binance.futures_ws_base_url') . "/stream?streams={$streams}";
 
-        Log::info("Connecting to Binance WebSocket", ['url' => $url, 'pairs' => $activePairs->pluck('symbol')->toArray()]);
+        Log::info("Connecting to Binance Futures WebSocket", [
+            'url' => $url,
+            'pairs' => $activePairs->pluck('futures_symbol')->toArray(),
+        ]);
 
         $this->registerSignalHandlers();
         $this->connect($url);
@@ -71,7 +71,7 @@ class BinanceWebSocketService
 
         $connector($url)->then(
             function (WebSocket $conn) use ($url) {
-                Log::info('Connected to Binance WebSocket successfully');
+                Log::info('Connected to Binance Futures WebSocket successfully');
                 $this->reconnectDelay = config('binance.reconnect_base_delay');
 
                 $conn->on('message', function (MessageInterface $msg) {
@@ -79,18 +79,18 @@ class BinanceWebSocketService
                 });
 
                 $conn->on('close', function ($code = null, $reason = null) use ($url) {
-                    Log::warning("WebSocket connection closed", ['code' => $code, 'reason' => $reason]);
+                    Log::warning("Futures WebSocket connection closed", ['code' => $code, 'reason' => $reason]);
                     if ($this->shouldRun) {
                         $this->scheduleReconnect($url);
                     }
                 });
 
-                $conn->on('error', function (\Exception $e) use ($url) {
-                    Log::error("WebSocket error", ['message' => $e->getMessage()]);
+                $conn->on('error', function (\Exception $e) {
+                    Log::error("Futures WebSocket error", ['message' => $e->getMessage()]);
                 });
             },
             function (\Exception $e) use ($url) {
-                Log::error("Could not connect to Binance WebSocket", ['message' => $e->getMessage()]);
+                Log::error("Could not connect to Binance Futures WebSocket", ['message' => $e->getMessage()]);
                 if ($this->shouldRun) {
                     $this->scheduleReconnect($url);
                 }
@@ -103,7 +103,7 @@ class BinanceWebSocketService
         $payload = json_decode((string) $msg, true);
 
         if (!$payload || !isset($payload['stream'], $payload['data'])) {
-            Log::warning('Invalid WebSocket message received');
+            Log::warning('Invalid Futures WebSocket message received');
             return;
         }
 
@@ -113,23 +113,21 @@ class BinanceWebSocketService
         $tradingPairId = $this->streamToTradingPairId[$streamName] ?? null;
 
         if ($tradingPairId === null) {
-            Log::warning("Unknown stream received", ['stream' => $streamName]);
+            Log::warning("Unknown futures stream received", ['stream' => $streamName]);
             return;
         }
 
-        // Determine stream type from the suffix after @
+        // Determine stream type
         $streamType = substr($streamName, strpos($streamName, '@') + 1);
 
         try {
             match (true) {
-                $streamType === 'depth20' => $this->orderbookService->updateOrderbook($tradingPairId, $data),
-                $streamType === 'aggTrade' => $this->orderbookService->saveTrade($tradingPairId, $data),
-                $streamType === 'ticker' => $this->orderbookService->updateTicker($tradingPairId, $data),
-                str_starts_with($streamType, 'kline_') => $this->orderbookService->updateKline($tradingPairId, $data),
-                default => Log::warning("Unhandled stream type", ['type' => $streamType]),
+                str_starts_with($streamType, 'markPrice') => $this->futuresService->updateMarkPrice($tradingPairId, $data),
+                $streamType === 'forceOrder' => $this->futuresService->saveLiquidation($tradingPairId, $data),
+                default => Log::warning("Unhandled futures stream type", ['type' => $streamType]),
             };
         } catch (\Exception $e) {
-            Log::error("Failed to process stream data", [
+            Log::error("Failed to process futures stream data", [
                 'stream' => $streamName,
                 'type' => $streamType,
                 'error' => $e->getMessage(),
@@ -140,7 +138,7 @@ class BinanceWebSocketService
     private function scheduleReconnect(string $url): void
     {
         $delay = $this->reconnectDelay;
-        Log::info("Reconnecting in {$delay} seconds...");
+        Log::info("Futures reconnecting in {$delay} seconds...");
 
         $this->loop->addTimer($delay, function () use ($url) {
             if ($this->shouldRun) {
@@ -162,7 +160,7 @@ class BinanceWebSocketService
 
         foreach ([SIGINT, SIGTERM] as $signal) {
             $this->loop->addSignal($signal, function () {
-                Log::info('Received shutdown signal. Closing gracefully...');
+                Log::info('Received shutdown signal for futures. Closing gracefully...');
                 $this->shouldRun = false;
                 $this->loop->stop();
             });

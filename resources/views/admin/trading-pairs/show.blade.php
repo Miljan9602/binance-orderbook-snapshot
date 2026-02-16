@@ -22,8 +22,16 @@
 
 @section('content')
     {{-- Back link --}}
-    <div class="mb-4">
+    <div class="mb-4 flex items-center gap-3">
         <a href="{{ route('admin.trading-pairs.index') }}" class="text-xs text-gray-500 hover:text-gray-400 transition-colors">&larr; Dashboard</a>
+        <span class="text-gray-700">|</span>
+        <a href="{{ route('admin.trading-pairs.history', $tradingPair) }}" class="text-xs text-gray-500 hover:text-gray-400 transition-colors">History</a>
+        <span class="text-gray-700">|</span>
+        <a href="{{ route('admin.trading-pairs.analytics', $tradingPair) }}" class="text-xs text-gray-500 hover:text-gray-400 transition-colors">Analytics</a>
+        <span class="text-gray-700">|</span>
+        <a href="{{ route('admin.trading-pairs.futures', $tradingPair) }}" class="text-xs text-gray-500 hover:text-gray-400 transition-colors">Futures</a>
+        <span class="text-gray-700">|</span>
+        <a href="{{ route('admin.trading-pairs.klines', $tradingPair) }}" class="text-xs text-gray-500 hover:text-gray-400 transition-colors">Klines</a>
     </div>
 
     {{-- Header Bar --}}
