@@ -1,3 +1,3 @@
-web: php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
+web: vendor/bin/heroku-php-apache2 public/
 websocket: php artisan binance:websocket
 scheduler: php artisan schedule:work
