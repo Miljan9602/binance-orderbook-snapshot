@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\Services\FuturesIngestionServiceInterface;
 use App\Models\TradingPair;
 use Illuminate\Support\Facades\Log;
 use Ratchet\Client\Connector;
@@ -13,12 +14,12 @@ use React\EventLoop\LoopInterface;
 class BinanceFuturesWebSocketService
 {
     private LoopInterface $loop;
-    private BinanceFuturesService $futuresService;
+    private FuturesIngestionServiceInterface $futuresService;
     private array $streamToTradingPairId = [];
     private int $reconnectDelay;
     private bool $shouldRun = true;
 
-    public function __construct(BinanceFuturesService $futuresService)
+    public function __construct(FuturesIngestionServiceInterface $futuresService)
     {
         $this->futuresService = $futuresService;
         $this->reconnectDelay = config('binance.reconnect_base_delay');

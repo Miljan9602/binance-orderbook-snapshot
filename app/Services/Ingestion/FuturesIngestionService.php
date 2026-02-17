@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Ingestion;
 
+use App\Contracts\Services\FuturesIngestionServiceInterface;
 use App\Models\FuturesMetric;
 use App\Models\FuturesMetricHistory;
 use App\Models\Liquidation;
@@ -11,10 +12,24 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class BinanceFuturesService
+/**
+ * Service for ingesting futures data from WebSocket and REST API.
+ *
+ * Handles persistence of mark price updates (with sampled history),
+ * liquidation events, and open interest polling from the Binance Futures REST API.
+ */
+class FuturesIngestionService implements FuturesIngestionServiceInterface
 {
+    /**
+     * Tracks the last history write timestamp per trading pair to enforce the sample interval.
+     *
+     * @var array<int, int>
+     */
     private array $lastHistoryWrite = [];
 
+    /**
+     * {@inheritdoc}
+     */
     public function updateMarkPrice(int $tradingPairId, array $data): void
     {
         $now = now();
@@ -44,6 +59,9 @@ class BinanceFuturesService
         }
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function saveLiquidation(int $tradingPairId, array $data): void
     {
         $order = $data['o'];
@@ -61,9 +79,12 @@ class BinanceFuturesService
         ]);
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function fetchAndSaveOpenInterest(): int
     {
-        $pairs = TradingPair::whereNotNull('futures_symbol')->where('is_active', true)->get();
+        $pairs = TradingPair::active()->hasFuturesSymbol()->get();
         $saved = 0;
 
         foreach ($pairs as $pair) {
@@ -98,21 +119,5 @@ class BinanceFuturesService
         }
 
         return $saved;
-    }
-
-    public function cleanOldHistory(): array
-    {
-        $retentionHours = config('binance.history_retention_hours');
-        $cutoff = now()->subHours($retentionHours);
-
-        $historyDeleted = FuturesMetricHistory::where('received_at', '<', $cutoff)->delete();
-        $liquidationsDeleted = Liquidation::where('order_time', '<', $cutoff)->delete();
-        $oiDeleted = OpenInterest::where('timestamp', '<', $cutoff)->delete();
-
-        return [
-            'futures_history' => $historyDeleted,
-            'liquidations' => $liquidationsDeleted,
-            'open_interest' => $oiDeleted,
-        ];
     }
 }

@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use App\Contracts\Services\KlineIngestionServiceInterface;
+use App\Contracts\Services\OrderbookIngestionServiceInterface;
+use App\Contracts\Services\TickerIngestionServiceInterface;
+use App\Contracts\Services\TradeIngestionServiceInterface;
 use App\Models\TradingPair;
 use Illuminate\Support\Facades\Log;
 use Ratchet\Client\Connector;
@@ -13,14 +17,24 @@ use React\EventLoop\LoopInterface;
 class BinanceWebSocketService
 {
     private LoopInterface $loop;
-    private OrderbookService $orderbookService;
+    private OrderbookIngestionServiceInterface $orderbookService;
+    private TradeIngestionServiceInterface $tradeService;
+    private TickerIngestionServiceInterface $tickerService;
+    private KlineIngestionServiceInterface $klineService;
     private array $streamToTradingPairId = [];
     private int $reconnectDelay;
     private bool $shouldRun = true;
 
-    public function __construct(OrderbookService $orderbookService)
-    {
+    public function __construct(
+        OrderbookIngestionServiceInterface $orderbookService,
+        TradeIngestionServiceInterface $tradeService,
+        TickerIngestionServiceInterface $tickerService,
+        KlineIngestionServiceInterface $klineService,
+    ) {
         $this->orderbookService = $orderbookService;
+        $this->tradeService = $tradeService;
+        $this->tickerService = $tickerService;
+        $this->klineService = $klineService;
         $this->reconnectDelay = config('binance.reconnect_base_delay');
         $this->loop = Loop::get();
     }
@@ -117,15 +131,14 @@ class BinanceWebSocketService
             return;
         }
 
-        // Determine stream type from the suffix after @
         $streamType = substr($streamName, strpos($streamName, '@') + 1);
 
         try {
             match (true) {
                 $streamType === 'depth20' => $this->orderbookService->updateOrderbook($tradingPairId, $data),
-                $streamType === 'aggTrade' => $this->orderbookService->saveTrade($tradingPairId, $data),
-                $streamType === 'ticker' => $this->orderbookService->updateTicker($tradingPairId, $data),
-                str_starts_with($streamType, 'kline_') => $this->orderbookService->updateKline($tradingPairId, $data),
+                $streamType === 'aggTrade' => $this->tradeService->saveTrade($tradingPairId, $data),
+                $streamType === 'ticker' => $this->tickerService->updateTicker($tradingPairId, $data),
+                str_starts_with($streamType, 'kline_') => $this->klineService->updateKline($tradingPairId, $data),
                 default => Log::warning("Unhandled stream type", ['type' => $streamType]),
             };
         } catch (\Exception $e) {
